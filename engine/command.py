@@ -3,7 +3,7 @@ import speech_recognition as sr
 import eel
 import time
 
-# Speak function, including setting the voice[male/female], speed and volume.
+# Speak function, including setting the voice[male/female], speed and volume.ss
 def speak(text):
     engine = pyttsx3.init('sapi5')
     voices = engine.getProperty('voices')

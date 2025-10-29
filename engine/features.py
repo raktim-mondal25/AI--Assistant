@@ -16,29 +16,52 @@ import pvporcupine
 import pyaudio
 import struct
 import pyautogui as autogui
+import google.generativeai as genai  # ✅ Gemini import
 
 
+# ======================================================
+# ✅ GEMINI CONFIGURATION
+# ======================================================
+GEMINI_API_KEY = "AIzaSyDL3NWMOHQOdo4F8up9sK0AY522vVXdNHw" 
 
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    print("✅ Gemini initialized successfully")
+except Exception as e:
+    print(f"❌ Gemini initialization failed: {e}")
+    model = None
+
+
+def chat_with_gemini(prompt):
+    """Send user input to Gemini and return its response."""
+    try:
+        if not model:
+            return "Model not initialized."
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error: {e}"
+
+
+# ======================================================
+# ✅ DATABASE SETUP
+# ======================================================
 con = sqlite3.connect("friday.db")
 cursor = con.cursor()
 
-# playing assistant sound function
-
+# ======================================================
+# ✅ ASSISTANT CORE FUNCTIONS
+# ======================================================
 @eel.expose
 def playAssistantSound():
-    music_dir ="www\\assests\\audio\\notification-sound-effect-372475.mp3"
+    music_dir = "www\\assests\\audio\\notification-sound-effect-372475.mp3"
     playsound(music_dir)
 
 
 def openCommand(query):
-    query = query.replace(ASSISTANT_NAME, "")
-    query = query.replace("open", "")
-    # if query!="":
-    #     speak("Openning "+query)
-    #     os.system('start '+query)
-    # else:
-    #     speak(f"Sorry, I could not find {query}")
-    app_name = query.strip()
+    query = query.replace(ASSISTANT_NAME, "").replace("open", "").strip()
+    app_name = query
 
     if app_name != "":
         try:
@@ -55,7 +78,7 @@ def openCommand(query):
 
                 if len(results) != 0:
                     speak("Opening " + query)
-                    os.startfile(results[0][0]) # it removes the brackets as it is present within a tuple
+                    os.startfile(results[0][0])
                 else:
                     speak("Opening " + query)
                     try:
@@ -69,19 +92,19 @@ def openCommand(query):
 
 def PlayYoutube(query):
     search_term = extract_yt_term(query)
-    speak("Playing "+search_term+" on YouTube")
+    speak("Playing " + search_term + " on YouTube")
     kit.playonyt(search_term)
 
 
-
-# to active it by just calling its name
+# ======================================================
+# ✅ HOTWORD ACTIVATION
+# ======================================================
 def hotword():
     porcupine = None
     paud = None
     audio_stream = None
 
     try:
-        # Use built-in keyword only, e.g. "alexa", "computer", "porcupine"
         porcupine = pvporcupine.create(keywords=["computer"])
 
         paud = pyaudio.PyAudio()
@@ -96,7 +119,6 @@ def hotword():
         while True:
             pcm = audio_stream.read(porcupine.frame_length, exception_on_overflow=False)
             pcm = struct.unpack_from("h" * porcupine.frame_length, pcm)
-
             result = porcupine.process(pcm)
 
             if result >= 0:
@@ -117,15 +139,17 @@ def hotword():
             paud.terminate()
 
 
-
-# find contacts
+# ======================================================
+# ✅ CONTACT & WHATSAPP FUNCTIONS
+# ======================================================
 def findContact(query):
     words_to_remove = [ASSISTANT_NAME, 'make', 'a', 'to', 'phone', 'call', 'send', 'message', 'wahtsapp', 'video']
     query = remove_words(query, words_to_remove)
 
     try:
         query = query.strip().lower()
-        cursor.execute("SELECT mobile_no FROM contacts_table WHERE LOWER(name) LIKE ? OR LOWER(name) LIKE ?", ('%' + query + '%', query + '%'))
+        cursor.execute("SELECT mobile_no FROM contacts_table WHERE LOWER(name) LIKE ? OR LOWER(name) LIKE ?",
+                       ('%' + query + '%', query + '%'))
         results = cursor.fetchall()
         print(results[0][0])
         mobile_number_str = str(results[0][0])
@@ -136,43 +160,30 @@ def findContact(query):
     except:
         speak('not exist in contacts')
         return 0, 0
-    
 
 
-
-# Whatsapp function(Very Important)
 def whatsApp(mobile_no, message, flag, name):
-
     if flag == 'message':
         target_tab = 19
-        jarvis_message = "message send successfully to "+name
-
+        jarvis_message = "message sent successfully to " + name
     elif flag == 'call':
         target_tab = 14
         message = ''
-        jarvis_message = "calling to "+name
-
+        jarvis_message = "calling " + name
     elif flag == 'video call':
         target_tab = 13
         message = ''
-        jarvis_message = "staring video call with "+name
+        jarvis_message = "starting video call with " + name
 
-    # Encode the message for URL
     encoded_message = quote(message)
-
-    # Construct the URL
     whatsapp_url = f"whatsapp://send?phone={mobile_no}&text={encoded_message}"
-
-    # Construct the full command
     full_command = f'start "" "{whatsapp_url}"'
 
-    # Open WhatsApp with the constructed URL using cmd.exe
     subprocess.run(full_command, shell=True)
     time.sleep(5)
     subprocess.run(full_command, shell=True)
-    
-    autogui.hotkey('ctrl', 'f')   #it will find the name in the whatsapp automatically
 
+    autogui.hotkey('ctrl', 'f')
     for i in range(1, target_tab):
         autogui.hotkey('tab')
 
@@ -180,12 +191,13 @@ def whatsApp(mobile_no, message, flag, name):
     speak(jarvis_message)
 
 
-
-# android automation
+# ======================================================
+# ✅ ANDROID AUTOMATION
+# ======================================================
 def makecall(name, mobileno):
-    mobileno = mobileno.replace(" ","")
-    speak("Calling "+name)
-    command = 'adb shell am start -a android.intent.action.CALL -d tel:'+mobileno
+    mobileno = mobileno.replace(" ", "")
+    speak("Calling " + name)
+    command = 'adb shell am start -a android.intent.action.CALL -d tel:' + mobileno
     os.system(command)
 
 
@@ -194,21 +206,42 @@ def sendMessage(message, mobileNo, name):
     message = replace_spaces_with_percent(message)
     mobileNo = replace_spaces_with_percent(mobileNo)
     speak("Sending message")
-    # goback(1)
-    # time.sleep(1)
-    # keyEvent(3)
-    # open sms app
-    tapEvents(341.8,2234.1)
-    # start chat
-    tapEvents(793.5,2212.6)
-    # search mobile number
+    tapEvents(341.8, 2234.1)
+    tapEvents(793.5, 2212.6)
     adbInput(mobileNo)
-    # tap on name
-    tapEvents(352.8,585.5)
-    # tap on input
-    tapEvents(243.5,2228.3)
-    #type message
+    tapEvents(349.5, 742.5)
+    tapEvents(243.5, 2228.3)
     adbInput(message)
-    # send
-    tapEvents(958.0,1401.1)
-    speak("Message sent successfully to "+name)
+    tapEvents(958.0, 1401.1)
+    speak("Message sent successfully to " + name)
+
+
+# ======================================================
+# ✅ GEMINI CHAT INTEGRATION FUNCTION (Voice + Chat)
+# ======================================================
+import threading
+
+@eel.expose
+def geminiAssistant(prompt):
+    try:
+        print(f"\n🎯 Gemini Prompt: {prompt}\n")
+        response = chat_with_gemini(prompt)
+
+        print("📩 Raw Gemini Response object:", response)   # 👈 add this line
+
+        if not response or response.strip() == "":
+            response = "Sorry, I couldn't generate a response right now."
+
+        clean_response = re.sub(r'\*{1,2}', '', response)
+        clean_response = clean_response.replace("\n", " ").strip()
+
+        print(f"🧠 Gemini Response (cleaned): {clean_response}\n")
+
+        threading.Thread(target=lambda: speak(clean_response)).start()
+        return clean_response
+
+    except Exception as e:
+        error_msg = f"Error while using Gemini: {e}"
+        print(error_msg)
+        threading.Thread(target=lambda: speak("Sorry, I faced an error while generating the response.")).start()
+        return error_msg
