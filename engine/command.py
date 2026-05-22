@@ -2,55 +2,129 @@ import pyttsx3
 import speech_recognition as sr
 import eel
 import time
+import threading
+import queue
+def ui(func, *args):
+    eel.spawn(func, *args)
 
-# Speak function, including setting the voice[male/female], speed and volume.ss
+
+
+speech_requests = queue.Queue()
+speech_ready = threading.Event()
+speech_engine_error = None
+
+
+def _speech_worker():
+    global speech_engine_error
+
+    try:
+        engine = pyttsx3.init('sapi5')
+        voices = engine.getProperty('voices')
+        engine.setProperty('voice', voices[1].id)
+        engine.setProperty('rate', 164)
+    except Exception as error:
+        speech_engine_error = error
+        speech_ready.set()
+        return
+
+    speech_ready.set()
+    while True:
+        text, completed = speech_requests.get()
+        try:
+            engine.say(text)
+            engine.runAndWait()
+        except Exception as error:
+            print("Speak error:", error)
+        finally:
+            completed.set()
+            speech_requests.task_done()
+
+
+threading.Thread(target=_speech_worker, daemon=True).start()
+
+# --- GLOBAL SPEECH OBJECTS ---
+recognizer = sr.Recognizer()
+mic = sr.Microphone()
+
+
 def speak(text):
-    engine = pyttsx3.init('sapi5')
-    voices = engine.getProperty('voices')
-    engine.setProperty('voice', voices[1].id)
-    engine.setProperty('rate', 164)      
-    eel.DisplayMessage(text)
-    # print(voices)             # to print the voices available
-    engine.say(text)
-    eel.receiverText(text)
-    engine.runAndWait()
+    try:
+        print("Speaking:", text)
+        eel.DisplayMessage(text)
+        ui(eel.receiverText,text)
+    except Exception as e:
+        print("Speech display error:", e)
+
+    normalized_text = text.casefold()
+    if (normalized_text.startswith("playing ") and normalized_text.endswith(" on youtube")) or normalized_text.startswith("message sent successfully to "):
+        return
+
+    if not speech_ready.wait(timeout=10):
+        print("Speech engine did not initialize")
+        return
+    if speech_engine_error is not None:
+        print("Speech engine error:", speech_engine_error)
+        return
+
+    completed = threading.Event()
+    speech_requests.put((text, completed))
+    completed.wait()
+    time.sleep(0.3)
+
 
 
 def takecommand():
-    r = sr.Recognizer()
-
-    with sr.Microphone() as source:
-        print("Listening....")
-        eel.DisplayMessage("Listening....")
-        r.pause_threshold = 1
-        r.adjust_for_ambient_noise(source)
-
-        audio = r.listen(source, 10, 6)
+    global recognizer, mic
 
     try:
+        with mic as source:
+            print("Listening....")
+            eel.DisplayMessage("Listening....")
+
+            recognizer.pause_threshold = 1
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=6)
+
         print("Recognizing....")
         eel.DisplayMessage("Recognizing....")
-        query = r.recognize_google(audio, language='en-in')
-        print(f"user said: {query}")
+
+        query = recognizer.recognize_google(audio, language='en-in')
+        print("User said:", query)
         eel.DisplayMessage(query)
-        time.sleep(2)
-        # speak(query)            #calling the speak function so that it can understand what is saids
-    except Exception as e:
+
+        return query.lower()
+
+    except sr.WaitTimeoutError:
         return ""
-    
-    return query.lower()
+    except sr.UnknownValueError:
+        return ""
+    except Exception as e:
+        print("Mic error:", e)
+        return ""
+
 
 
 @eel.expose
 def allCommands(message=1):
+    _allCommandsWorker(message)
+    return "done"
+
+
+def _allCommandsWorker(message=1):
     
     if message==1:
         query = takecommand()
         print(query)
-        eel.senderText(query)
+        ui(eel.senderText, query)
     else:
         query = message
-        eel.senderText(query)
+        ui(eel.senderText,query)
+    
+    if not query.strip():
+        speak("Sorry, I didn't catch that. Please try again.")
+        return
+
 
 
     try:
@@ -94,8 +168,7 @@ def allCommands(message=1):
                     whatsApp(contact_no, query, message, name)
 
         else:
-            print("Not run")
-    except:
-        print("error")
-
-    eel.Showhood()
+            from engine.features import geminai
+            geminai(query)
+    except Exception as e:
+        print("Command error:", e)

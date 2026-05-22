@@ -52,12 +52,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
 const oval = document.querySelector("#oval");
 const wave = document.querySelector("#SiriWave");
+
+function runAssistantCommand(message) {
+  const command = message === undefined
+    ? eel.allCommands()()
+    : eel.allCommands(message)();
+  command.then(() => {
+    const status = document.querySelector(".siri-message").textContent;
+    if (/^Playing .+ on YouTube$/i.test(status) || /^Message sent successfully to /i.test(status)) {
+      const utterance = new SpeechSynthesisUtterance(status);
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }
+    resetMicUI();
+  }, resetMicUI);
+}
+
 document.querySelector("#mic-button").addEventListener("click", ()=>{
     oval.classList.add("hidden");
     eel.playAssistantSound();
     wave.classList.remove("hidden");
-    eel.allCommands()();
+    runAssistantCommand();
 });
+
+function resetMicUI() {
+  wave.classList.add("hidden");
+  oval.classList.remove("hidden");
+  document.querySelector(".siri-message").textContent =
+    "Hello, I am Friday. Feel free to tell me what I could do for you.";
+}
 
 
 function doc_keyUp(e){
@@ -65,7 +88,7 @@ function doc_keyUp(e){
     eel.playAssistantSound();
     oval.classList.add("hidden");
     wave.classList.remove("hidden");
-    eel.allCommands()();
+    runAssistantCommand();
   }
 }
 document.addEventListener('keyup',doc_keyUp,false);
@@ -75,7 +98,7 @@ function PlayAssistant(message){
   if(message.trim()!==""){
     oval.classList.add("hidden");
     wave.classList.remove("hidden");
-    eel.allCommands(message);
+    runAssistantCommand(message);
     document.querySelector("#chatbox").value = "";
     document.querySelector("#mic-button").classList.remove("hidden");
     document.querySelector("#SendBtn").classList.add("hidden");

@@ -6,43 +6,18 @@ import time
 import traceback
 import webbrowser
 from engine.command import allCommands, speak
-from engine.helper import extract_yt_term, remove_words
+from engine.helper import extract_yt_term, remove_words, markdown_to_text
 from playsound import playsound
 import eel
 from engine.config import ASSISTANT_NAME
+from engine.config import LLM_KEY
 import pywhatkit as kit
 import sqlite3
 import pvporcupine
 import pyaudio
 import struct
 import pyautogui as autogui
-import google.generativeai as genai  # ✅ Gemini import
-
-
-# ======================================================
-# ✅ GEMINI CONFIGURATION
-# ======================================================
-GEMINI_API_KEY = "AIzaSyDL3NWMOHQOdo4F8up9sK0AY522vVXdNHw" 
-
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    print("✅ Gemini initialized successfully")
-except Exception as e:
-    print(f"❌ Gemini initialization failed: {e}")
-    model = None
-
-
-def chat_with_gemini(prompt):
-    """Send user input to Gemini and return its response."""
-    try:
-        if not model:
-            return "Model not initialized."
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Error: {e}"
-
+import google.generativeai as genai
 
 # ======================================================
 # ✅ DATABASE SETUP
@@ -219,29 +194,18 @@ def sendMessage(message, mobileNo, name):
 # ======================================================
 # ✅ GEMINI CHAT INTEGRATION FUNCTION (Voice + Chat)
 # ======================================================
-import threading
 
-@eel.expose
-def geminiAssistant(prompt):
+def geminai(query):
     try:
-        print(f"\n🎯 Gemini Prompt: {prompt}\n")
-        response = chat_with_gemini(prompt)
-
-        print("📩 Raw Gemini Response object:", response)   # 👈 add this line
-
-        if not response or response.strip() == "":
-            response = "Sorry, I couldn't generate a response right now."
-
-        clean_response = re.sub(r'\*{1,2}', '', response)
-        clean_response = clean_response.replace("\n", " ").strip()
-
-        print(f"🧠 Gemini Response (cleaned): {clean_response}\n")
-
-        threading.Thread(target=lambda: speak(clean_response)).start()
-        return clean_response
-
+        query = query.replace(ASSISTANT_NAME, "")
+        query = query.replace("search", "")
+        # Setting up the api key
+        genai.configure(api_key=LLM_KEY)
+        # Selecting a model
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        # Generating a response
+        response = model.generate_content(query)
+        filter_text=markdown_to_text(response.text)
+        speak(filter_text)
     except Exception as e:
-        error_msg = f"Error while using Gemini: {e}"
-        print(error_msg)
-        threading.Thread(target=lambda: speak("Sorry, I faced an error while generating the response.")).start()
-        return error_msg
+        print("Error: ",e)
