@@ -139,7 +139,7 @@ def findContact(query):
 
 def whatsApp(mobile_no, message, flag, name):
     if flag == 'message':
-        target_tab = 19
+        target_tab = 22
         jarvis_message = "message sent successfully to " + name
     elif flag == 'call':
         target_tab = 14
